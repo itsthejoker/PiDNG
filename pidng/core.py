@@ -3,6 +3,7 @@ import io
 import os
 import types
 from dataclasses import dataclass
+from typing import Union
 
 import exifread
 import numpy as np
@@ -138,7 +139,7 @@ class Profile:
     ccm2: list
     illu1: int
     illu2: int
-    as_shot_neutral: list
+    as_shot_neutral: Union[list, None]
     profile_name: str
 
     def write(self, main_ifd, maker_note):
