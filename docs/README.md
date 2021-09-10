@@ -57,7 +57,7 @@ Or add in to your pyproject.toml file:
 ```
 [tool.poetry.dependencies]
 ...
-PiDNG = "^3.4.5"
+PiDNG = "^4.0.0"
 ```
 
 
@@ -81,6 +81,13 @@ Utility.py:
 ```
 
 ***
+
+DEVELOPMENT
+------------
+
+Install locally using poetry: `poetry install`
+
+If you need the C extension `lj92`, run `poetry build`.
 
 TODO
 ------------
