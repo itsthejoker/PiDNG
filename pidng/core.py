@@ -239,10 +239,11 @@ RASPI = {
 
 
 class RPICAM2DNG:
-    def __init__(self):
+    def __init__(self, profile: Profile=None):
         self.header = None
         self.__exif__ = None
         self.maker_note = None
+        self.profile = profile
         self.etags = {
             "EXIF DateTimeDigitized": None,
             "EXIF FocalLength": 0,
@@ -441,7 +442,7 @@ class RPICAM2DNG:
 
     def add_exif(self, main_ifd):
         main_ifd.tags.append(DNGTag(Tag.PhotometricInterpretation, [32803]))
-        main_ifd.tags.append(DNGTag(Tag.Software, "PyDNG"))
+        main_ifd.tags.append(DNGTag(Tag.Software, "PiDNG"))
         main_ifd.tags.append(DNGTag(Tag.Orientation, [1]))
         main_ifd.tags.append(DNGTag(Tag.DNGVersion, [1, 4, 0, 0]))
         main_ifd.tags.append(DNGTag(Tag.DNGBackwardVersion, [1, 2, 0, 0]))
@@ -478,13 +479,14 @@ class RPICAM2DNG:
         )
 
     def add_matrices(self, main_ifd):
-        rphq_str = ("RP_testc", "imx477", "RP_imx477")
+        rpi_hq_camera_names = ("RP_testc", "imx477", "RP_imx477")
+        if not self.profile:
+            if str(self.etags["Image Model"]) in rpi_hq_camera_names:
+                self.profile = FMProfile(**IMX477)
+            else:
+                self.profile = Profile(**RASPI)
 
-        if str(self.etags["Image Model"]) in rphq_str:
-            profile = FMProfile(**IMX477)
-        else:
-            profile = Profile(**RASPI)
-        profile.write(main_ifd, self.maker_note)
+        self.profile.write(main_ifd, self.maker_note)
 
     def make_dng(self, dngTemplate, main_ifd):
 
@@ -551,8 +553,8 @@ class RPICAM2DNG:
 
 
 class RAW2DNG:
-    def __init__(self):
-        pass
+    def __init__(self, profile: Profile=None) -> None:
+        self.profile = profile
 
     def __process__(self, rawImage, processing):
 
@@ -646,6 +648,8 @@ class RAW2DNG:
         buf = bytearray(totalLength)
         dngTemplate.set_buffer(buf)
         dngTemplate.write()
+        if self.profile:
+            self.profile.write(main_ifd, maker_note)
 
         if file_output:
             if not filename.endswith(".dng"):
