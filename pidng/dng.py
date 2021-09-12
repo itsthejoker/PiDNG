@@ -264,8 +264,8 @@ class DNGTag(DNG):
 
     def set_buffer(self, buf, tagOffset=None, dataOffset=None):
         self.buf = buf
-        self.TagOffset = tagOffset
-        self.DataOffset = dataOffset
+        self.TagOffset = tagOffset if tagOffset else self.TagOffset
+        self.DataOffset = dataOffset if dataOffset else self.DataOffset
         if self.subIFD:
             self.subIFD.set_buffer(
                 buf,
