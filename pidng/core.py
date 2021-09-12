@@ -480,7 +480,6 @@ class RPICAM2DNG:
 
     def add_matrices(self, main_ifd):
         rpi_hq_camera_names = ("RP_testc", "imx477", "RP_imx477")
-        breakpoint()
 
         if not self.profile:
             if str(self.etags["Image Model"]) in rpi_hq_camera_names:
