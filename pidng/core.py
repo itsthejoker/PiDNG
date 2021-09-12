@@ -480,12 +480,13 @@ class RPICAM2DNG:
 
     def add_matrices(self, main_ifd):
         rpi_hq_camera_names = ("RP_testc", "imx477", "RP_imx477")
+        breakpoint()
+
         if not self.profile:
             if str(self.etags["Image Model"]) in rpi_hq_camera_names:
                 self.profile = FMProfile(**IMX477)
             else:
                 self.profile = Profile(**RASPI)
-
         self.profile.write(main_ifd, self.maker_note)
 
     def make_dng(self, dngTemplate, main_ifd):

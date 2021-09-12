@@ -137,14 +137,16 @@ Tag = Dict(
         "OpcodeList1": (51008, Type.Undefined),
         "OpcodeList2": (51009, Type.Undefined),
         "ReelName": (51081, Type.Ascii),
-        # 1.4 Spec says rational but mentions negative values?
-        "BaselineExposureOffset": (51109, Type.Srational),
+        "BaselineExposureOffset": (
+            51109,
+            Type.Srational,
+        ),  # 1.4 Spec says rational but mentions negative values?
         "DefaultBlackRender": (51110, Type.Long),
         "NewRawImageDigest": (51111, Type.Byte),
     }
 )
 
-id_tag_lookup = {id[0]: tag for tag, id in Tag.items()}
+ID_2_TAG = {id[0]: tag for tag, id in Tag.items()}
 
 
 class DNGHeader(object):
@@ -155,56 +157,8 @@ class DNGHeader(object):
         return struct.pack("<sI", "II\x2A\x00", self.IFDOffset)
 
 
-class DNG:
-    def __init__(self, *args, **kwargs):
-        self.IFDs = []
-        self.ImageDataStrips = []
-        self.StripOffsets = {}
-
-    def set_buffer(self, buf, *args, **kwargs):
-        self.buf = buf
-
-        currentOffset = 8
-
-        for ifd in self.IFDs:
-            ifd.set_buffer(
-                buf,
-                currentOffset,
-            )
-            currentOffset += ifd.data_len()
-
-    def data_len(self):
-        totalLength = 8
-        for ifd in self.IFDs:
-            totalLength += (ifd.data_len() + 3) & 0xFFFFFFFC
-
-        for i in range(len(self.ImageDataStrips)):
-            self.StripOffsets[i] = totalLength
-            strip = self.ImageDataStrips[i]
-            totalLength += (len(strip) + 3) & 0xFFFFFFFC
-
-        return (totalLength + 3) & 0xFFFFFFFC
-
-    def write(self):
-        struct.pack_into(
-            "<ccbbI", self.buf, 0, b"I", b"I", 0x2A, 0x00, 8
-        )  # assume the first IFD happens immediately after header
-
-        for ifd in self.IFDs:
-            ifd.write()
-
-        for i in range(len(self.ImageDataStrips)):
-            self.buf[
-                self.StripOffsets[i] : self.StripOffsets[i]
-                + len(self.ImageDataStrips[i])
-            ] = self.ImageDataStrips[i]
-
-
-class DNGTag(DNG):
-    def __init__(self, tagType=None, value=None, *args, **kwargs):
-        value = value if value else list()
-        tagType = tagType if tagType else Tag.Invalid
-
+class DNGTag(object):
+    def __init__(self, tagType=Tag.Invalid, value=[]):
         self.Type = tagType
         self.TagId = tagType[0]
         self.DataType = tagType[1]
@@ -212,13 +166,14 @@ class DNGTag(DNG):
         self.DataOffset = 0
 
         self.subIFD = None
+
         self.set_value(value)
+
         self.DataLength = len(self.Value)
         self.selfContained = True if self.DataLength <= 4 else False
-        super().__init__(*args, **kwargs)
 
     def __repr__(self):
-        msg = "{}:{}".format(id_tag_lookup[self.TagId], self.Value)
+        msg = "{}:{}".format(ID_2_TAG[self.TagId], self.Value)
         return msg
 
     def set_value(self, value):
@@ -262,15 +217,12 @@ class DNGTag(DNG):
             "\x00" * (((len(self.Value) + 3) & 0xFFFFFFFC) - len(self.Value))
         )
 
-    def set_buffer(self, buf, tagOffset=None, dataOffset=None):
+    def set_buffer(self, buf, tagOffset, dataOffset):
         self.buf = buf
-        self.TagOffset = tagOffset if tagOffset else self.TagOffset
-        self.DataOffset = dataOffset if dataOffset else self.DataOffset
+        self.TagOffset = tagOffset
+        self.DataOffset = dataOffset
         if self.subIFD:
-            self.subIFD.set_buffer(
-                buf,
-                self.DataOffset,
-            )
+            self.subIFD.set_buffer(buf, self.DataOffset)
 
     def data_len(self):
         if self.subIFD:
@@ -310,11 +262,10 @@ class DNGTag(DNG):
                 )
 
 
-class DNG_IFD(DNG):
+class DNG_IFD(object):
     def __init__(self):
         self.tags = []
         self.NextIFDOffset = 0
-        super().__init__()
 
     def __repr__(self):
         out = ""
@@ -322,16 +273,13 @@ class DNG_IFD(DNG):
             out += "{}\n".format(tag)
         return out
 
-    def set_buffer(self, buf, offset=None, **kwargs):
+    def set_buffer(self, buf, offset):
         self.buf = buf
         self.offset = offset
         currentDataOffset = offset + 2 + len(self.tags) * 12 + 4
         currentTagOffset = offset + 2
         for tag in sorted(self.tags, key=lambda x: x.TagId):
-            tag.set_buffer(
-                buf,
-                currentTagOffset,
-            )
+            tag.set_buffer(buf, currentTagOffset, currentDataOffset)
             currentTagOffset += 12
             currentDataOffset += tag.data_len()
             # currentDataOffset = (currentDataOffset + 3) & 0xFFFFFFFC
@@ -354,3 +302,45 @@ class DNG_IFD(DNG):
         struct.pack_into(
             "<I", self.buf, self.offset + 2 + len(self.tags) * 12, self.NextIFDOffset
         )
+
+
+class DNG(object):
+    def __init__(self):
+        self.IFDs = []
+        self.ImageDataStrips = []
+        self.StripOffsets = {}
+
+    def set_buffer(self, buf):
+        self.buf = buf
+
+        currentOffset = 8
+
+        for ifd in self.IFDs:
+            ifd.set_buffer(buf, currentOffset)
+            currentOffset += ifd.data_len()
+
+    def data_len(self):
+        totalLength = 8
+        for ifd in self.IFDs:
+            totalLength += (ifd.data_len() + 3) & 0xFFFFFFFC
+
+        for i in range(len(self.ImageDataStrips)):
+            self.StripOffsets[i] = totalLength
+            strip = self.ImageDataStrips[i]
+            totalLength += (len(strip) + 3) & 0xFFFFFFFC
+
+        return (totalLength + 3) & 0xFFFFFFFC
+
+    def write(self):
+        struct.pack_into(
+            "<ccbbI", self.buf, 0, b"I", b"I", 0x2A, 0x00, 8
+        )  # assume the first IFD happens immediately after header
+
+        for ifd in self.IFDs:
+            ifd.write()
+
+        for i in range(len(self.ImageDataStrips)):
+            self.buf[
+                self.StripOffsets[i] : self.StripOffsets[i]
+                + len(self.ImageDataStrips[i])
+            ] = self.ImageDataStrips[i]
