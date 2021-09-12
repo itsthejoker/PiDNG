@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pidng"
-version = "4.0.2"
+version = "4.0.3"
 description = "Python utility for converting Raspberry Pi Camera RAW images into Adobe DNG Format."
 build = "build.py"
 homepage = "https://github.com/itsthejoker/PiDNG"
